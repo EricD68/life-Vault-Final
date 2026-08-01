@@ -31,9 +31,12 @@ RULES = """<?xml version="1.0" encoding="utf-8"?>
 SOURCE_MANIFEST = f"""<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="{ANDROID_NS}" package="com.lifevault.mobile.test">
   <uses-sdk android:minSdkVersion="28" android:targetSdkVersion="36" />
+  <permission android:name="com.lifevault.mobile.test.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+    android:protectionLevel="signature" />
   <uses-permission android:name="android.permission.HIDE_OVERLAY_WINDOWS" />
   <uses-permission android:name="android.permission.USE_BIOMETRIC" />
   <uses-permission android:name="android.permission.USE_FINGERPRINT" />
+  <uses-permission android:name="com.lifevault.mobile.test.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" />
   <application android:allowBackup="false" android:fullBackupContent="false"
     android:dataExtractionRules="@xml/life_vault_data_extraction_rules"
     android:usesCleartextTraffic="false" android:debuggable="false" />
@@ -134,6 +137,30 @@ def main() -> int:
         ), encoding="utf-8")
         result = run([str(ROOT / "scripts/verify_merged_manifest.py"), str(final_manifest)])
         assert_result(result, False, "Unexpected final permission")
+
+        final_manifest.write_text(SOURCE_MANIFEST.replace(
+            'android:protectionLevel="signature"', 'android:protectionLevel="dangerous"'
+        ), encoding="utf-8")
+        result = run([str(ROOT / "scripts/verify_merged_manifest.py"), str(final_manifest)])
+        assert_result(result, False, "Unsafe dynamic receiver permission")
+
+        final_manifest.write_text(SOURCE_MANIFEST.replace(
+            '<uses-permission android:name="android.permission.HIDE_OVERLAY_WINDOWS" />',
+            '<uses-permission android:name="android.permission.HIDE_OVERLAY_WINDOWS" />\n'
+            '  <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />',
+        ), encoding="utf-8")
+        result = run([str(ROOT / "scripts/verify_merged_manifest.py"), str(final_manifest)])
+        assert_result(result, False, "Forbidden broad storage permission")
+
+        no_dynamic_permission = SOURCE_MANIFEST.replace(
+            '  <permission android:name="com.lifevault.mobile.test.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"\n'
+            '    android:protectionLevel="signature" />\n', ''
+        ).replace(
+            '  <uses-permission android:name="com.lifevault.mobile.test.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" />\n', ''
+        )
+        final_manifest.write_text(no_dynamic_permission, encoding="utf-8")
+        result = run([str(ROOT / "scripts/verify_merged_manifest.py"), str(final_manifest)])
+        assert_result(result, True, "Manifest without optional AndroidX receiver permission")
 
         final_manifest.write_text(SOURCE_MANIFEST.replace('android:minSdkVersion="28"', 'android:minSdkVersion="27"'), encoding="utf-8")
         result = run([str(ROOT / "scripts/verify_merged_manifest.py"), str(final_manifest)])

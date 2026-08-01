@@ -8,6 +8,7 @@ input must never produce a traceback in CI.
 from __future__ import annotations
 
 import argparse
+import re
 import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -15,11 +16,21 @@ from pathlib import Path
 HEADING = "FINAL APK MANIFEST CHECK FAILED"
 ANDROID_NS = "http://schemas.android.com/apk/res/android"
 ATTR = lambda name: f"{{{ANDROID_NS}}}{name}"
-EXPECTED_PERMISSIONS = {
+EXPECTED_PLATFORM_PERMISSIONS = {
     "android.permission.HIDE_OVERLAY_WINDOWS",
     "android.permission.USE_BIOMETRIC",
     "android.permission.USE_FINGERPRINT",
 }
+FORBIDDEN_PLATFORM_PERMISSIONS = {
+    "android.permission.INTERNET",
+    "android.permission.ACCESS_NETWORK_STATE",
+    "android.permission.READ_EXTERNAL_STORAGE",
+    "android.permission.WRITE_EXTERNAL_STORAGE",
+    "android.permission.MANAGE_EXTERNAL_STORAGE",
+    "android.permission.SYSTEM_ALERT_WINDOW",
+    "android.permission.VIBRATE",
+}
+DYNAMIC_RECEIVER_PERMISSION_SUFFIX = ".DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
 
 
 def local_name(tag: str) -> str:
@@ -35,6 +46,22 @@ def parse_sdk(value: str | None, label: str, errors: list[str]) -> int | None:
     except ValueError:
         errors.append(f"android:{label} is not numeric: {value!r}")
         return None
+
+
+def is_signature_permission(value: str | None) -> bool:
+    """Accept symbolic or numeric Android signature protection levels."""
+    if value is None:
+        return False
+    normalised = value.strip().lower()
+    tokens = {token for token in re.split(r"[|,\s]+", normalised) if token}
+    if "signature" in tokens:
+        return True
+    try:
+        numeric = int(normalised, 0)
+    except ValueError:
+        return False
+    # The low four bits are the base protection level; signature is 0x2.
+    return numeric & 0xF == 0x2
 
 
 def main() -> int:
@@ -68,14 +95,36 @@ def main() -> int:
                 if target_sdk is not None and target_sdk != args.target_sdk:
                     errors.append(f"android:targetSdkVersion: expected {args.target_sdk}, found {target_sdk}")
 
-            permissions = {
+            requested_permissions = {
                 child.attrib.get(ATTR("name"))
                 for child in root
                 if local_name(child.tag).startswith("uses-permission")
                 and child.attrib.get(ATTR("name"))
             }
-            unexpected_permissions = sorted(permissions - EXPECTED_PERMISSIONS)
-            missing_permissions = sorted(EXPECTED_PERMISSIONS - permissions)
+            declared_permissions = {
+                child.attrib.get(ATTR("name")): child.attrib.get(ATTR("protectionLevel"))
+                for child in root
+                if local_name(child.tag) == "permission" and child.attrib.get(ATTR("name"))
+            }
+
+            dynamic_receiver_permission = f"{args.package}{DYNAMIC_RECEIVER_PERMISSION_SUFFIX}"
+            allowed_permissions = set(EXPECTED_PLATFORM_PERMISSIONS)
+            if dynamic_receiver_permission in requested_permissions:
+                protection_level = declared_permissions.get(dynamic_receiver_permission)
+                if not is_signature_permission(protection_level):
+                    errors.append(
+                        "App-owned dynamic-receiver permission is not declared with signature protection: "
+                        f"{protection_level!r}"
+                    )
+                else:
+                    allowed_permissions.add(dynamic_receiver_permission)
+
+            forbidden_present = sorted(requested_permissions & FORBIDDEN_PLATFORM_PERMISSIONS)
+            if forbidden_present:
+                errors.append(f"Forbidden requested permissions remain: {forbidden_present}")
+
+            unexpected_permissions = sorted(requested_permissions - allowed_permissions)
+            missing_permissions = sorted(EXPECTED_PLATFORM_PERMISSIONS - requested_permissions)
             if unexpected_permissions:
                 errors.append(f"Unexpected requested permissions remain: {unexpected_permissions}")
             if missing_permissions:

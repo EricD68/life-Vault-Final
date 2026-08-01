@@ -12,7 +12,6 @@ FULL_FILE_MANIFEST.txt
 HANDOFF_STATUS.md
 LICENSE
 README.md
-SOURCE_MANIFEST.sha256
 app.json
 assets/android-icon-background.png
 assets/android-icon-foreground.png

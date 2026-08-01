@@ -134,6 +134,19 @@ def main() -> int:
         assert_fail(malformed_json, "dependency_static_check.py", "DEPENDENCY/BUILD STATIC CHECK FAILED", "malformed app.json")
         assert_fail(malformed_json, "security_static_check.py", "SECURITY STATIC CHECK FAILED", "malformed app.json")
 
+        missing_permission_block = temp_root / "missing-permission-block"
+        copy_repository(missing_permission_block)
+        app_path = missing_permission_block / "app.json"
+        app = json.loads(app_path.read_text(encoding="utf-8"))
+        app["expo"]["android"]["blockedPermissions"].remove("android.permission.SYSTEM_ALERT_WINDOW")
+        app_path.write_text(json.dumps(app, indent=2) + "\n", encoding="utf-8")
+        assert_fail(
+            missing_permission_block,
+            "security_static_check.py",
+            "SECURITY STATIC CHECK FAILED",
+            "missing required blocked permission",
+        )
+
         broken_structure = temp_root / "broken-structure"
         copy_repository(broken_structure)
         db_path = broken_structure / "modules/life-vault-native/android/src/main/java/expo/modules/lifevaultnative/storage/VaultDatabase.kt"

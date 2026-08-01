@@ -86,8 +86,18 @@ def check() -> None:
     permissions = android.get("permissions", [])
     require(isinstance(blocked, list), "app.json blockedPermissions must be an array")
     require(isinstance(permissions, list), "app.json permissions must be an array")
-    require("android.permission.INTERNET" in blocked, "INTERNET permission is not blocked")
-    require("android.permission.ACCESS_NETWORK_STATE" in blocked, "ACCESS_NETWORK_STATE is not blocked")
+    required_blocked_permissions = {
+        "android.permission.INTERNET",
+        "android.permission.ACCESS_NETWORK_STATE",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.MANAGE_EXTERNAL_STORAGE",
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.VIBRATE",
+    }
+    if isinstance(blocked, list):
+        missing_blocked = sorted(required_blocked_permissions - set(blocked))
+        require(not missing_blocked, f"Required blocked Android permissions are missing: {missing_blocked}")
     require("android.permission.HIDE_OVERLAY_WINDOWS" in permissions, "Overlay-window protection permission is missing")
     require("android.permission.USE_BIOMETRIC" in permissions, "Biometric permission is missing")
     require("android.permission.USE_FINGERPRINT" in permissions, "Android 9 biometric compatibility permission is missing")
