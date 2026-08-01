@@ -25,6 +25,13 @@ This repair was made from the exact `Lifevault-main.zip` downloaded from the cur
 - Replaced locale-dependent signing-certificate text matching with a direct SHA-256 certificate digest check.
 - Preserved both vault slots at startup when the active-slot marker is absent, preventing automatic deletion after marker damage.
 
+
+## Real-device defect corrected after the first green APK build
+
+- Corrected Android Keystore HMAC operation creation. `AndroidKeyStore` remains the key-generation/storage provider, but it is no longer incorrectly forced as the `Mac` implementation provider.
+- Reduced the retry HMAC key authorisation to `PURPOSE_SIGN`, which is the only operation the app performs with that key.
+- Added a blocking static assertion and a deliberately broken checker fixture for the exact `Mac.getInstance(..., AndroidKeyStore)` regression.
+
 ## Checks completed against this exact repaired snapshot
 
 - All four blocking repository checkers passed together.

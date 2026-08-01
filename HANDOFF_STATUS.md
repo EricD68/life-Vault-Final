@@ -13,6 +13,13 @@ The workflow reached Gradle and failed because two generated Gradle properties h
 Version 2.1.8 replaces those tools as one consistent snapshot. The checkers now report controlled failures, inspect only application-owned inputs and test themselves against the exact false-positive cases previously encountered. The Android backup exclusions now cover both credential-encrypted and device-protected storage, and the signing certificate is checked by its binary SHA-256 digest rather than locale-dependent `keytool` output.
 
 
+
+## Runtime HMAC correction after the first green APK build
+
+The first APK that completed CI reached the real-device preflight and failed with `NoSuchAlgorithmException: HmacSHA256 for provider AndroidKeyStore`. The defect was in `KeystoreManager.hmac`: it incorrectly requested `AndroidKeyStore` as the JCA `Mac` implementation provider. AndroidKeyStore stores and authorises the non-exportable HMAC key; the `Mac` implementation must be selected with provider-neutral `Mac.getInstance(KeyProperties.KEY_ALGORITHM_HMAC_SHA256)` and then initialised with that key.
+
+The retry HMAC key is now generated for `PURPOSE_SIGN` only, matching its actual use. The blocking security checker and its negative fixtures now reject any reintroduction of a provider-forced AndroidKeyStore HMAC call. The corrected source still requires a new green CI build and a new phone preflight before setup.
+
 ## Status of this exact source
 
 - Included repository checks and their negative fixtures: passed.

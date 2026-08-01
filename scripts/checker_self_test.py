@@ -121,6 +121,26 @@ def main() -> int:
         assert_fail(forbidden_dependency, "dependency_static_check.py", "DEPENDENCY/BUILD STATIC CHECK FAILED", "unexpected dependency")
         assert_fail(forbidden_dependency, "security_static_check.py", "SECURITY STATIC CHECK FAILED", "forbidden dependency")
 
+        forced_hmac_provider = temp_root / "forced-hmac-provider"
+        copy_repository(forced_hmac_provider)
+        keystore_path = forced_hmac_provider / (
+            "modules/life-vault-native/android/src/main/java/"
+            "expo/modules/lifevaultnative/security/KeystoreManager.kt"
+        )
+        keystore_text = keystore_path.read_text(encoding="utf-8")
+        keystore_text = keystore_text.replace(
+            "Mac.getInstance(KeyProperties.KEY_ALGORITHM_HMAC_SHA256)",
+            "Mac.getInstance(KeyProperties.KEY_ALGORITHM_HMAC_SHA256, ANDROID_KEYSTORE)",
+            1,
+        )
+        keystore_path.write_text(keystore_text, encoding="utf-8")
+        assert_fail(
+            forced_hmac_provider,
+            "security_static_check.py",
+            "SECURITY STATIC CHECK FAILED",
+            "AndroidKeyStore incorrectly forced as HMAC provider",
+        )
+
         missing_native_file = temp_root / "missing-native-file"
         copy_repository(missing_native_file)
         target = missing_native_file / "modules/life-vault-native/android/src/main/java/expo/modules/lifevaultnative/VaultRuntime.kt"

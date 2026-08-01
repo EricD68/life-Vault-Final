@@ -35,7 +35,7 @@ class KeystoreManager {
             val generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_HMAC_SHA256, ANDROID_KEYSTORE)
             val builder = KeyGenParameterSpec.Builder(
                 alias,
-                KeyProperties.PURPOSE_SIGN or KeyProperties.PURPOSE_VERIFY,
+                KeyProperties.PURPOSE_SIGN,
             ).setDigests(KeyProperties.DIGEST_SHA256)
             if (strongBox) builder.setIsStrongBoxBacked(true)
             generator.init(builder.build())
@@ -134,7 +134,10 @@ class KeystoreManager {
     }
 
     fun hmac(alias: String, bytes: ByteArray): ByteArray {
-        val mac = Mac.getInstance("HmacSHA256", ANDROID_KEYSTORE)
+        // AndroidKeyStore stores and authorises the key; it is not the JCA Mac
+        // implementation provider. Allow JCA to select the Android-compatible
+        // HMAC implementation, then initialise it with the non-exportable key.
+        val mac = Mac.getInstance(KeyProperties.KEY_ALGORITHM_HMAC_SHA256)
         mac.init(secretKey(alias))
         return mac.doFinal(bytes)
     }

@@ -202,6 +202,20 @@ def check() -> None:
         ("AUTH_BIOMETRIC_STRONG" in keystore, "Biometric Keystore key is not restricted to strong biometrics"),
         ("setInvalidatedByBiometricEnrollment(true)" in keystore, "Biometric key invalidation is missing"),
         ("setIsStrongBoxBacked(true)" in keystore, "StrongBox preference is missing"),
+        (
+            re.search(
+                r"Mac\.getInstance\(\s*KeyProperties\.KEY_ALGORITHM_HMAC_SHA256\s*\)",
+                keystore,
+            ) is not None,
+            "Android Keystore HMAC does not use provider-neutral Mac selection",
+        ),
+        (
+            re.search(
+                r"Mac\.getInstance\(\s*(?:KeyProperties\.KEY_ALGORITHM_HMAC_SHA256|\"HmacSHA256\")\s*,",
+                keystore,
+            ) is None,
+            "AndroidKeyStore is incorrectly forced as the HMAC Mac provider",
+        ),
         ('System.loadLibrary("sqlcipher")' in runtime, "SQLCipher native library is not loaded"),
         ("Logger.setTarget(NoopTarget())" in runtime, "SQLCipher Java logging is not disabled"),
         ("prepareNewVault" in repository and "commitNewVault" in repository, "Atomic two-stage setup is missing"),
