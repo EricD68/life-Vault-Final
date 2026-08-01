@@ -184,6 +184,7 @@ def check() -> None:
     repository = read_required(f"{base}/storage/VaultRepository.kt")
     retry = read_required(f"{base}/security/RetryGate.kt")
     dialogs = read_required(f"{base}/security/SecureDialogs.kt")
+    recovery_check = read_required(f"{base}/security/RecoveryPhraseCheck.kt")
     backup = read_required(f"{base}/backup/BackupFormat.kt")
     session = read_required(f"{base}/session/VaultSession.kt")
     clipboard = read_required(f"{base}/security/SensitiveClipboard.kt")
@@ -223,6 +224,38 @@ def check() -> None:
         ("AtomicFile" in retry and ".startWrite()" in retry and ".finishWrite(" in retry, "Retry state is not written atomically"),
         ("PinPad" in dialogs and "GridLayout" in dialogs, "App-owned native PIN keypad is missing"),
         ("RecoveryPhrasePad" in dialogs and "bip39_english.txt" in dialogs, "App-owned recovery phrase keypad is missing"),
+        ("confirmRecoveryPhraseSample" in dialogs and "RecoveryWordPad" in dialogs, "Sampled setup recovery confirmation is missing"),
+        (
+            "confirmRecoveryPhraseSample" in native
+            and "expectedWords = pending.phrase" in native
+            and native.find("confirmRecoveryPhraseSample") < native.find('AsyncFunction("unlockWithPin")'),
+            "New-vault setup does not use sampled recovery confirmation",
+        ),
+        (
+            'message = "Enter all 24 words in order. Setup is not committed until this check succeeds."' not in native,
+            "New-vault setup still requires all 24 words to be re-entered",
+        ),
+        (
+            "The app will not display answer choices." in dialogs
+            and "private class RecoveryWordPad" in dialogs
+            and "bip39_english.txt" not in dialogs[
+                dialogs.find("private class RecoveryWordPad"):
+                dialogs.find("private class RecoveryPhrasePad")
+            ],
+            "Setup confirmation still exposes recovery-word answer choices",
+        ),
+        (
+            "const val REQUIRED_WORDS = 24" in recovery_check
+            and "const val SAMPLE_COUNT = 3" in recovery_check
+            and "segment * SEGMENT_SIZE + offset" in recovery_check,
+            "Recovery confirmation does not sample three spread positions",
+        ),
+        (
+            "sizeRecoveryDialog(activity, dialog)" in dialogs
+            and 'text = "Cancel setup"' in dialogs
+            and 'text = "Continue"' in dialogs,
+            "Recovery phrase display does not keep fixed setup actions visible",
+        ),
         ("TYPE_NUMBER_VARIATION_PASSWORD" not in dialogs and "EditText" not in dialogs, "Security credentials still use the Android software keyboard"),
         ("MAX_BACKUP_FILE_BYTES" in backup, "Backup maximum size is not centralised"),
         ("rawQuery(statement, null)" in database and 'execSQL("PRAGMA' not in database, "SQLCipher PRAGMAs are not executed through rawQuery"),

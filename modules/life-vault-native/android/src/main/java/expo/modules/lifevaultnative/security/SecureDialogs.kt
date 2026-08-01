@@ -128,34 +128,267 @@ object SecureDialogs {
         onContinue: (Boolean) -> Unit,
     ) {
         activity.runOnUiThread {
+            require(words.size == RecoveryPhraseCheck.REQUIRED_WORDS) {
+                "A recovery phrase must contain ${RecoveryPhraseCheck.REQUIRED_WORDS} words."
+            }
+
             val finished = AtomicBoolean(false)
-            val phrase = words.mapIndexed { index, word -> "${index + 1}. $word" }.joinToString("\n")
-            val text = TextView(activity).apply {
-                setPadding(dp(activity, 20), dp(activity, 16), dp(activity, 20), dp(activity, 16))
+            val root = LinearLayout(activity).apply {
+                orientation = LinearLayout.VERTICAL
+                filterTouchesWhenObscured = true
+                setPadding(dp(activity, 20), dp(activity, 18), dp(activity, 20), dp(activity, 14))
+            }
+
+            root.addView(TextView(activity).apply {
+                text = "Write down your 24-word recovery phrase"
+                textSize = 20f
+                typeface = Typeface.DEFAULT_BOLD
+                setTextIsSelectable(false)
+            })
+            root.addView(helpText(
+                activity,
+                "This is the only portable recovery method. Write every word on paper, in order. Do not screenshot or store it digitally.",
+            ).apply {
+                setPadding(0, dp(activity, 10), 0, dp(activity, 10))
+            })
+
+            val phraseText = TextView(activity).apply {
+                text = words.mapIndexed { index, word -> "${index + 1}. $word" }.joinToString("\n")
                 textSize = 17f
                 typeface = Typeface.MONOSPACE
                 setTextIsSelectable(false)
-                this.text = phrase
+                setPadding(dp(activity, 10), dp(activity, 10), dp(activity, 10), dp(activity, 10))
+                contentDescription = "Twenty-four word recovery phrase"
             }
-            val scroll = ScrollView(activity).apply { addView(text) }
-            val dialog = AlertDialog.Builder(activity)
-                .setTitle("Write down your 24-word recovery phrase")
-                .setMessage("This is the only portable recovery method. Write every word on paper, in order. Do not screenshot or store it digitally.")
-                .setView(scroll)
-                .setPositiveButton("I've written it down") { _, _ ->
+            val scroll = ScrollView(activity).apply {
+                isFillViewport = true
+                addView(
+                    phraseText,
+                    ViewGroup.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ),
+                )
+            }
+            root.addView(
+                scroll,
+                LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    0,
+                    1f,
+                ),
+            )
+
+            lateinit var dialog: AlertDialog
+            val buttonRow = LinearLayout(activity).apply {
+                orientation = LinearLayout.HORIZONTAL
+                setPadding(0, dp(activity, 12), 0, 0)
+            }
+            val cancel = Button(activity).apply {
+                text = "Cancel setup"
+                isAllCaps = false
+                filterTouchesWhenObscured = true
+                setOnClickListener {
                     VaultRuntime.touch()
-                    if (finished.compareAndSet(false, true)) onContinue(true)
+                    if (finished.compareAndSet(false, true)) {
+                        dialog.dismiss()
+                        onContinue(false)
+                    }
                 }
-                .setNegativeButton("Cancel setup") { _, _ ->
+            }
+            val continueButton = Button(activity).apply {
+                text = "Continue"
+                isAllCaps = false
+                filterTouchesWhenObscured = true
+                setOnClickListener {
                     VaultRuntime.touch()
-                    if (finished.compareAndSet(false, true)) onContinue(false)
+                    if (finished.compareAndSet(false, true)) {
+                        dialog.dismiss()
+                        onContinue(true)
+                    }
                 }
+            }
+            buttonRow.addView(
+                cancel,
+                LinearLayout.LayoutParams(0, dp(activity, 52), 1f).apply {
+                    marginEnd = dp(activity, 4)
+                },
+            )
+            buttonRow.addView(
+                continueButton,
+                LinearLayout.LayoutParams(0, dp(activity, 52), 1f).apply {
+                    marginStart = dp(activity, 4)
+                },
+            )
+            root.addView(
+                buttonRow,
+                LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                ),
+            )
+
+            dialog = AlertDialog.Builder(activity)
+                .setView(root)
                 .create()
+            dialog.setCanceledOnTouchOutside(false)
             dialog.setOnCancelListener {
                 if (finished.compareAndSet(false, true)) onContinue(false)
             }
+            dialog.setOnDismissListener {
+                phraseText.text = ""
+            }
             dialog.show()
             secureDialog(dialog)
+            sizeRecoveryDialog(activity, dialog)
+        }
+    }
+
+    fun confirmRecoveryPhraseSample(
+        activity: Activity,
+        expectedWords: List<String>,
+        onResult: (Boolean) -> Unit,
+    ) {
+        activity.runOnUiThread {
+            require(expectedWords.size == RecoveryPhraseCheck.REQUIRED_WORDS) {
+                "A recovery phrase must contain ${RecoveryPhraseCheck.REQUIRED_WORDS} words."
+            }
+
+            val finished = AtomicBoolean(false)
+            val positions = RecoveryPhraseCheck.selectPositions()
+            var current = 0
+
+            val root = LinearLayout(activity).apply {
+                orientation = LinearLayout.VERTICAL
+                filterTouchesWhenObscured = true
+                setPadding(dp(activity, 20), dp(activity, 18), dp(activity, 20), dp(activity, 14))
+            }
+            root.addView(TextView(activity).apply {
+                text = "Confirm recovery phrase"
+                textSize = 20f
+                typeface = Typeface.DEFAULT_BOLD
+                setTextIsSelectable(false)
+            })
+            root.addView(helpText(
+                activity,
+                "Enter three words from your paper copy. The app will not display answer choices.",
+            ).apply {
+                setPadding(0, dp(activity, 10), 0, dp(activity, 8))
+            })
+
+            val progress = TextView(activity).apply {
+                textSize = 13f
+                setTextIsSelectable(false)
+            }
+            val prompt = TextView(activity).apply {
+                textSize = 19f
+                typeface = Typeface.DEFAULT_BOLD
+                setTextIsSelectable(false)
+                setPadding(0, dp(activity, 4), 0, dp(activity, 8))
+            }
+            root.addView(progress)
+            root.addView(prompt)
+
+            val wordPad = RecoveryWordPad(activity)
+            val wordPadScroll = ScrollView(activity).apply {
+                isFillViewport = true
+                addView(
+                    wordPad.root,
+                    ViewGroup.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ),
+                )
+            }
+            root.addView(
+                wordPadScroll,
+                LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    0,
+                    1f,
+                ),
+            )
+            val error = errorText(activity)
+            root.addView(error)
+
+            val buttonRow = LinearLayout(activity).apply {
+                orientation = LinearLayout.HORIZONTAL
+                setPadding(0, dp(activity, 10), 0, 0)
+            }
+            val cancel = Button(activity).apply {
+                text = "Cancel setup"
+                isAllCaps = false
+                filterTouchesWhenObscured = true
+            }
+            val check = Button(activity).apply {
+                text = "Check word"
+                isAllCaps = false
+                filterTouchesWhenObscured = true
+            }
+            buttonRow.addView(
+                cancel,
+                LinearLayout.LayoutParams(0, dp(activity, 52), 1f).apply {
+                    marginEnd = dp(activity, 4)
+                },
+            )
+            buttonRow.addView(
+                check,
+                LinearLayout.LayoutParams(0, dp(activity, 52), 1f).apply {
+                    marginStart = dp(activity, 4)
+                },
+            )
+            root.addView(buttonRow)
+
+            lateinit var dialog: AlertDialog
+            fun finish(value: Boolean) {
+                if (finished.compareAndSet(false, true)) {
+                    dialog.dismiss()
+                    onResult(value)
+                }
+            }
+            fun refreshPrompt() {
+                progress.text = "Check ${current + 1} of ${positions.size}"
+                prompt.text = "Enter word ${positions[current] + 1} of ${RecoveryPhraseCheck.REQUIRED_WORDS}"
+                error.text = ""
+                wordPad.clear()
+            }
+
+            dialog = AlertDialog.Builder(activity)
+                .setView(root)
+                .create()
+            dialog.setCanceledOnTouchOutside(false)
+            dialog.setOnCancelListener {
+                if (finished.compareAndSet(false, true)) onResult(false)
+            }
+            dialog.setOnDismissListener {
+                wordPad.clear()
+            }
+
+            cancel.setOnClickListener {
+                VaultRuntime.touch()
+                finish(false)
+            }
+            check.setOnClickListener {
+                VaultRuntime.touch()
+                val entered = wordPad.word()
+                when {
+                    entered.isBlank() -> error.text = "Enter the requested word."
+                    !RecoveryPhraseCheck.matches(expectedWords, positions[current], entered) -> {
+                        error.text = "That word does not match. Check your paper copy and try again."
+                        wordPad.clear()
+                    }
+                    current + 1 < positions.size -> {
+                        current += 1
+                        refreshPrompt()
+                    }
+                    else -> finish(true)
+                }
+            }
+
+            refreshPrompt()
+            dialog.show()
+            secureDialog(dialog)
+            sizeRecoveryDialog(activity, dialog)
         }
     }
 
@@ -221,6 +454,13 @@ object SecureDialogs {
         dialog.window?.decorView?.filterTouchesWhenObscured = true
     }
 
+    private fun sizeRecoveryDialog(activity: Activity, dialog: AlertDialog) {
+        val metrics = activity.resources.displayMetrics
+        val width = (metrics.widthPixels * 0.94f).toInt()
+        val height = (metrics.heightPixels * 0.88f).toInt()
+        dialog.window?.setLayout(width, height)
+    }
+
     private fun verticalBox(activity: Activity): LinearLayout = LinearLayout(activity).apply {
         orientation = LinearLayout.VERTICAL
         filterTouchesWhenObscured = true
@@ -237,6 +477,104 @@ object SecureDialogs {
         textSize = 13f
         setTextColor(0xffb00020.toInt())
         setPadding(0, dp(activity, 8), 0, 0)
+    }
+
+    private class RecoveryWordPad(private val activity: Activity) {
+        private val value = StringBuilder()
+        private val display = TextView(activity).apply {
+            textSize = 20f
+            typeface = Typeface.MONOSPACE
+            textAlignment = View.TEXT_ALIGNMENT_CENTER
+            setTextIsSelectable(false)
+            setPadding(dp(activity, 8), dp(activity, 10), dp(activity, 8), dp(activity, 10))
+            minHeight = dp(activity, 56)
+            contentDescription = "Recovery word entry"
+            importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS
+        }
+
+        val root = LinearLayout(activity).apply {
+            orientation = LinearLayout.VERTICAL
+            filterTouchesWhenObscured = true
+            addView(
+                this@RecoveryWordPad.display,
+                ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    dp(activity, 64),
+                ),
+            )
+            addView(letterRow("qwertyuiop"))
+            addView(letterRow("asdfghjkl"))
+            addView(letterRow("zxcvbnm"))
+            val controls = LinearLayout(activity).apply {
+                orientation = LinearLayout.HORIZONTAL
+                addView(keyButton("⌫", 1f) { backspace() })
+                addView(keyButton("Clear", 1f) { clear() })
+            }
+            addView(
+                controls,
+                ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    dp(activity, 52),
+                ),
+            )
+        }
+
+        fun word(): String = value.toString().lowercase(Locale.ROOT).trim()
+
+        fun clear() {
+            for (index in value.indices) value.setCharAt(index, '\u0000')
+            value.setLength(0)
+            update()
+        }
+
+        private fun letterRow(keys: String): LinearLayout = LinearLayout(activity).apply {
+            orientation = LinearLayout.HORIZONTAL
+            keys.forEach { letter ->
+                addView(keyButton(letter.toString(), 1f) {
+                    if (value.length < MAX_RECOVERY_WORD_CHARACTERS) {
+                        value.append(letter)
+                        update()
+                    }
+                })
+            }
+        }
+
+        private fun keyButton(label: String, weight: Float, action: () -> Unit): Button =
+            Button(activity).apply {
+                text = label
+                textSize = if (label.length == 1) 15f else 12f
+                isAllCaps = false
+                minWidth = 0
+                minimumWidth = 0
+                setPadding(0, 0, 0, 0)
+                layoutParams = LinearLayout.LayoutParams(0, dp(activity, 48), weight).apply {
+                    setMargins(dp(activity, 1), dp(activity, 1), dp(activity, 1), dp(activity, 1))
+                }
+                filterTouchesWhenObscured = true
+                setOnClickListener {
+                    VaultRuntime.touch()
+                    action()
+                }
+            }
+
+        private fun backspace() {
+            if (value.isNotEmpty()) {
+                value.deleteCharAt(value.lastIndex)
+                update()
+            }
+        }
+
+        private fun update() {
+            display.text = if (value.isEmpty()) "—" else value.toString()
+        }
+
+        init {
+            update()
+        }
+
+        companion object {
+            private const val MAX_RECOVERY_WORD_CHARACTERS = 16
+        }
     }
 
     private class RecoveryPhrasePad(private val activity: Activity) {

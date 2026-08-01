@@ -24,8 +24,36 @@ function isIdentifierKey(key: string): boolean {
     lower.includes('externalid') ||
     lower.includes('sortcode') ||
     lower.includes('routing') ||
+    lower.includes('licence') ||
+    lower.includes('license') ||
+    lower.includes('passport') ||
+    lower.includes('nationalid') ||
+    lower.includes('taxid') ||
+    lower.includes('utr') ||
+    lower.includes('vin') ||
+    lower.includes('serialnumber') ||
+    lower.endsWith('number') ||
     lower.endsWith('id')
   );
+}
+
+function isSensitiveIdentifierKey(key: string): boolean {
+  const lower = key.toLowerCase();
+  return [
+    'accountnumber', 'cardnumber', 'passport', 'nationalid', 'taxid', 'utr',
+    'licencenumber', 'licensenumber', 'healthnumber', 'memberid', 'vin',
+  ].some((token) => lower.includes(token));
+}
+
+function attributeValueType(key: string, type: string): EntityAttribute['valueType'] {
+  const lower = key.toLowerCase();
+  if (type === 'phone') return 'phone';
+  if (type === 'date') return 'date';
+  if (type === 'notes') return 'notes';
+  if (type === 'number') return 'number';
+  if (lower.includes('email')) return 'email';
+  if (lower.includes('url') || lower.includes('website') || lower.includes('address')) return lower.includes('address') && !lower.includes('web') ? 'notes' : 'url';
+  return 'text';
 }
 
 export function emptyAttribute(order = 0): EntityAttribute {
@@ -125,8 +153,8 @@ export function createEntityFromTemplate(template: EntityTemplate): VaultEntityB
         type: field.key,
         label: field.label,
         value: '',
-        sensitive: field.key.toLowerCase().includes('accountnumber'),
-        searchable: true,
+        sensitive: isSensitiveIdentifierKey(field.key),
+        searchable: !isSensitiveIdentifierKey(field.key),
         sortOrder: index,
       });
     } else {
@@ -135,16 +163,7 @@ export function createEntityFromTemplate(template: EntityTemplate): VaultEntityB
         key: field.key,
         label: field.label,
         value: '',
-        valueType:
-          field.type === 'phone'
-            ? 'phone'
-            : field.type === 'date'
-              ? 'date'
-              : field.type === 'notes'
-                ? 'notes'
-                : field.type === 'number'
-                  ? 'number'
-                  : 'text',
+        valueType: attributeValueType(field.key, field.type),
         sensitive: false,
         searchable: true,
         sortOrder: index,

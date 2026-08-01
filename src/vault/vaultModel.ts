@@ -31,26 +31,70 @@ export interface FieldDefinition {
 
 export type Region = 'UK' | 'US' | 'ALL';
 
-export type CategoryId =
+export type CurrentCategoryId =
+  | 'projects'
   | 'money'
+  | 'household'
+  | 'digital'
+  | 'identity'
+  | 'health'
+  | 'people'
+  | 'vehicles'
+  | 'subscriptions'
+  | 'business'
+  | 'custom';
+
+// Legacy values remain accepted so an existing encrypted vault is never
+// invalidated by the interface redesign. They are normalised for display.
+export type LegacyCategoryId =
   | 'home_bills'
   | 'phone_tech'
   | 'government_id'
   | 'health_family'
-  | 'business'
-  | 'codes_access'
-  | 'custom';
+  | 'codes_access';
 
-export const CATEGORIES: { id: CategoryId; label: string }[] = [
-  { id: 'money', label: 'Money' },
-  { id: 'home_bills', label: 'Home & Bills' },
-  { id: 'phone_tech', label: 'Phone & Tech' },
-  { id: 'government_id', label: 'Government & ID' },
-  { id: 'health_family', label: 'Health & Family' },
-  { id: 'business', label: 'Business / Self-Employed' },
-  { id: 'codes_access', label: 'Codes & Access' },
-  { id: 'custom', label: 'Custom' },
+export type CategoryId = CurrentCategoryId | LegacyCategoryId;
+
+export interface CategoryDefinition {
+  id: CurrentCategoryId;
+  label: string;
+  shortLabel: string;
+  description: string;
+}
+
+export const CATEGORIES: CategoryDefinition[] = [
+  { id: 'projects', label: 'Projects & Collections', shortLabel: 'Projects', description: 'Projects, households, people and businesses used as containers.' },
+  { id: 'money', label: 'Money', shortLabel: 'Money', description: 'Banks, cards, loans, pensions, investments and wallets.' },
+  { id: 'household', label: 'Household & Property', shortLabel: 'Home', description: 'Utilities, property, insurance, maintenance and home services.' },
+  { id: 'digital', label: 'Digital & Communications', shortLabel: 'Digital', description: 'Email, mobile, cloud, devices and online accounts.' },
+  { id: 'identity', label: 'Identity & Government', shortLabel: 'ID', description: 'Passports, licences, tax, certificates and government records.' },
+  { id: 'health', label: 'Health & Care', shortLabel: 'Health', description: 'Health identifiers, providers, insurance and essential care records.' },
+  { id: 'people', label: 'People & Family', shortLabel: 'Family', description: 'Dependants, education, childcare and family legal records.' },
+  { id: 'vehicles', label: 'Vehicles & Travel', shortLabel: 'Vehicles', description: 'Vehicles, cover, inspections, travel accounts and documents.' },
+  { id: 'subscriptions', label: 'Subscriptions & Memberships', shortLabel: 'Subs', description: 'Streaming, software, gyms, clubs, news and memberships.' },
+  { id: 'business', label: 'Work & Business', shortLabel: 'Business', description: 'Company, banking, tax, insurance, suppliers and business software.' },
+  { id: 'custom', label: 'Custom', shortLabel: 'Custom', description: 'Anything that does not fit the supplied structures.' },
 ];
+
+const LEGACY_CATEGORY_MAP: Record<LegacyCategoryId, CurrentCategoryId> = {
+  home_bills: 'household',
+  phone_tech: 'digital',
+  government_id: 'identity',
+  health_family: 'health',
+  codes_access: 'custom',
+};
+
+export function normaliseCategory(category: string): CurrentCategoryId {
+  if (category in LEGACY_CATEGORY_MAP) return LEGACY_CATEGORY_MAP[category as LegacyCategoryId];
+  if (CATEGORIES.some((entry) => entry.id === category)) return category as CurrentCategoryId;
+  return 'custom';
+}
+
+export function categoryLabel(category: string, short = false): string {
+  const normalised = normaliseCategory(category);
+  const definition = CATEGORIES.find((entry) => entry.id === normalised);
+  return short ? (definition?.shortLabel ?? 'Custom') : (definition?.label ?? 'Custom');
+}
 
 export interface AccountTemplate {
   id: string;

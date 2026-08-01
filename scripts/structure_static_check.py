@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate the encrypted relational model and privacy-preserving graph search."""
+"""Validate the encrypted relational model, container hierarchy and privacy-preserving graph search."""
 from __future__ import annotations
 
 import sys
@@ -45,8 +45,10 @@ def check() -> None:
     module = read_required(f"{base}/LifeVaultNativeModule.kt")
     manager = read_required("src/vault/vaultManager.ts")
     model = read_required("src/vault/entityModel.ts")
+    category_model = read_required("src/vault/vaultModel.ts")
     list_screen = read_required("src/screens/VaultListScreen.tsx")
     editor = read_required("src/screens/AddEditItemScreen.tsx")
+    detail = read_required("src/screens/ItemDetailScreen.tsx")
 
     for table in (
         "vault_entities",
@@ -83,9 +85,33 @@ def check() -> None:
     )
     require("summary.remove(\"notes\")" in db and "summary.remove(\"loginUrl\")" in db, "List/search summaries expose full-record fields")
     require(db.count("searchable = 1 AND sensitive = 0") >= 2, "Sensitive attributes or identifiers are not excluded from search")
-    require("Search follows links" in list_screen, "User-facing graph-search explanation is missing")
-    require("Connect this to projects, platforms, accounts and resources" in editor, "Relationship editor is missing")
-    require("ENTITY_TEMPLATES" in editor, "Template-driven editor is missing")
+
+    for category in (
+        "projects", "money", "household", "digital", "identity", "health",
+        "people", "vehicles", "subscriptions", "business", "custom",
+    ):
+        require(f"'{category}'" in category_model, f"Missing top-level category: {category}")
+    require("normaliseCategory" in category_model, "Legacy categories are not normalised non-destructively")
+
+    for template in (
+        "project_container", "household_container", "person_container", "business_container",
+        "app_asset", "website_asset", "community_asset", "streaming_subscription",
+        "electricity_account", "gas_account", "water_account", "medication_record",
+        "vehicle_asset", "business_bank",
+    ):
+        require(f"'{template}'" in model, f"Missing required entity template: {template}")
+
+    require("What are you adding?" in editor, "Real-world add-category chooser is missing")
+    require("templatesForAddGroup" in editor, "Grouped template selection is missing")
+    require("Login and access" in editor and "Account identifiers" in editor, "Progressive add/edit sections are missing")
+    require("Legacy project web details" in editor, "Legacy project website values are not preserved")
+    require("primaryContainerAction" in detail and "group: 'project_assets'" in detail, "Project containers do not provide a direct Add asset flow")
+    require("+ Add subscription" in detail and "group: 'subscriptions'" in detail, "Household containers do not provide a direct subscription flow")
+    require("+ Add health item" in detail and "group: 'health'" in detail, "Person containers do not provide a direct health flow")
+    require('title="Assets"' in detail and 'title="Accounts and services"' in detail, "Container contents are not grouped by level")
+    require("Search follows links between containers, assets, providers and accounts" in list_screen, "User-facing graph-search explanation is missing")
+    require("flexShrink: 0" in list_screen, "Front-screen chips can shrink and truncate")
+    require("normaliseCategory" in list_screen, "Legacy category filtering is not supported")
 
 
 def main() -> int:
@@ -98,7 +124,7 @@ def main() -> int:
         for failure in failures:
             print(f"- {failure}")
         return 1
-    print("Relational structure static checks passed.")
+    print("Relational structure and interface checks passed.")
     return 0
 
 

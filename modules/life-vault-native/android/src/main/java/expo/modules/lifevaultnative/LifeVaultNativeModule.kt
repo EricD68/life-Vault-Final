@@ -104,23 +104,22 @@ class LifeVaultNativeModule : Module() {
                                         }
                                         return@showRecoveryPhrase
                                     }
-                                    SecureDialogs.promptRecoveryPhrase(
+                                    SecureDialogs.confirmRecoveryPhraseSample(
                                         activity,
-                                        title = "Confirm recovery phrase",
-                                        message = "Enter all 24 words in order. Setup is not committed until this check succeeds.",
-                                    ) { entered ->
-                                        if (entered == null) {
+                                        expectedWords = pending.phrase,
+                                    ) { confirmed ->
+                                        if (!confirmed) {
                                             VaultRuntime.executor.execute {
                                                 VaultRuntime.abortPendingSetup()
                                                 rejectCancelled(promise)
                                             }
-                                            return@promptRecoveryPhrase
+                                            return@confirmRecoveryPhraseSample
                                         }
                                         VaultRuntime.executor.execute {
                                             try {
                                                 val activePending = VaultRuntime.pendingSetup()
                                                     ?: error("Pending setup expired")
-                                                VaultRuntime.repo().commitNewVault(activePending, entered)
+                                                VaultRuntime.repo().commitNewVault(activePending, activePending.phrase)
                                                 VaultRuntime.clearPendingSetup()
                                                 VaultRuntime.onUnlocked()
                                                 promise.resolve(VaultRuntime.stateMap())

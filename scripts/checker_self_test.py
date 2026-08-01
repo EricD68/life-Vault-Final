@@ -141,6 +141,32 @@ def main() -> int:
             "AndroidKeyStore incorrectly forced as HMAC provider",
         )
 
+        full_phrase_setup = temp_root / "full-phrase-setup"
+        copy_repository(full_phrase_setup)
+        module_path = full_phrase_setup / (
+            "modules/life-vault-native/android/src/main/java/"
+            "expo/modules/lifevaultnative/LifeVaultNativeModule.kt"
+        )
+        module_text = module_path.read_text(encoding="utf-8")
+        module_text = module_text.replace(
+            "SecureDialogs.confirmRecoveryPhraseSample(",
+            "SecureDialogs.promptRecoveryPhrase(",
+            1,
+        )
+        module_text = module_text.replace(
+            "expectedWords = pending.phrase,",
+            'title = "Confirm recovery phrase",\n'
+            '                                        message = "Enter all 24 words in order. Setup is not committed until this check succeeds.",',
+            1,
+        )
+        module_path.write_text(module_text, encoding="utf-8")
+        assert_fail(
+            full_phrase_setup,
+            "security_static_check.py",
+            "SECURITY STATIC CHECK FAILED",
+            "setup regressed to full 24-word confirmation",
+        )
+
         missing_native_file = temp_root / "missing-native-file"
         copy_repository(missing_native_file)
         target = missing_native_file / "modules/life-vault-native/android/src/main/java/expo/modules/lifevaultnative/VaultRuntime.kt"

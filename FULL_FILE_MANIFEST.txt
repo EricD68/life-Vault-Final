@@ -12,6 +12,7 @@ FULL_FILE_MANIFEST.txt
 HANDOFF_STATUS.md
 LICENSE
 README.md
+UPDATE_2.1.8_COMBINED.md
 app.json
 assets/android-icon-background.png
 assets/android-icon-foreground.png
@@ -37,6 +38,7 @@ modules/life-vault-native/android/src/main/java/expo/modules/lifevaultnative/cry
 modules/life-vault-native/android/src/main/java/expo/modules/lifevaultnative/security/BiometricController.kt
 modules/life-vault-native/android/src/main/java/expo/modules/lifevaultnative/security/KeystoreManager.kt
 modules/life-vault-native/android/src/main/java/expo/modules/lifevaultnative/security/PinPolicy.kt
+modules/life-vault-native/android/src/main/java/expo/modules/lifevaultnative/security/RecoveryPhraseCheck.kt
 modules/life-vault-native/android/src/main/java/expo/modules/lifevaultnative/security/RetryGate.kt
 modules/life-vault-native/android/src/main/java/expo/modules/lifevaultnative/security/SecureDialogs.kt
 modules/life-vault-native/android/src/main/java/expo/modules/lifevaultnative/security/SensitiveClipboard.kt
@@ -52,6 +54,7 @@ modules/life-vault-native/android/src/test/java/expo/modules/lifevaultnative/cry
 modules/life-vault-native/android/src/test/java/expo/modules/lifevaultnative/crypto/Bip39CodecTest.kt
 modules/life-vault-native/android/src/test/java/expo/modules/lifevaultnative/crypto/HkdfTest.kt
 modules/life-vault-native/android/src/test/java/expo/modules/lifevaultnative/security/PinPolicyTest.kt
+modules/life-vault-native/android/src/test/java/expo/modules/lifevaultnative/security/RecoveryPhraseCheckTest.kt
 modules/life-vault-native/android/src/test/java/expo/modules/lifevaultnative/storage/GraphTraversalTest.kt
 modules/life-vault-native/expo-module.config.json
 modules/life-vault-native/index.ts
