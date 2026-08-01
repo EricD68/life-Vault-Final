@@ -176,7 +176,7 @@ export default function ItemDetailScreen({ route, navigation }: any) {
   const assetAddGroup: AddGroupId = (isProjectContainer || isBusinessContainer) ? 'project_assets' : containerDefaultGroup;
 
   function addToContainer(group?: AddGroupId) {
-    navigation.navigate('AddEdit', { parentEntityId: entity.id, addGroup: group });
+    navigation.navigate('AddEdit', { parentEntityId: entityId, addGroup: group });
   }
 
   const renderDirectEntries = (items: ConnectedEntity[], empty: string) => (

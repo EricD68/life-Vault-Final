@@ -75,8 +75,16 @@ function Input({ label, value, onChangeText, placeholder, multiline = false, sec
   );
 }
 
-function Section({ title, subtitle, onAdd, defaultOpen = true, children }: any) {
-  const [open, setOpen] = useState(defaultOpen);
+type SectionProps = {
+  title: string;
+  subtitle?: string;
+  onAdd?: () => void;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+};
+
+function Section({ title, subtitle, onAdd, defaultOpen = true, children }: SectionProps) {
+  const [open, setOpen] = useState<boolean>(defaultOpen);
   return (
     <View style={styles.section}>
       <View style={styles.sectionHeader}>
