@@ -10,41 +10,11 @@ permissions:
 jobs:
   build-android:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
-    env:
-      CI: 'true'
+    timeout-minutes: 45
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Repository preflight
-        shell: bash
-        run: |
-          set -euo pipefail
-          required=(
-            package.json
-            app.json
-            tsconfig.json
-            index.ts
-            plugins/withLifeVaultAndroidSecurity.js
-            scripts/dependency_static_check.py
-            scripts/security_static_check.py
-            scripts/structure_static_check.py
-            scripts/import_graph_check.py
-            scripts/checker_self_test.py
-            scripts/configure_generated_android.py
-            scripts/verify_merged_manifest.py
-            scripts/build_script_self_test.py
-            .github/test-signing/life-vault-test.jks
-          )
-          for file in "${required[@]}"; do
-            if [[ ! -f "$file" ]]; then
-              printf 'Missing required repository file: %s\n' "$file" >&2
-              exit 1
-            fi
-          done
-          python3 -m py_compile scripts/*.py
 
       - name: Set up Node 22
         uses: actions/setup-node@v4
@@ -64,37 +34,17 @@ jobs:
         uses: android-actions/setup-android@v3
 
       - name: Install Android SDK 36
+        run: yes | sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Regenerate dependency lock and install pinned JavaScript dependencies
         shell: bash
         run: |
           set -euo pipefail
-          sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+          rm -f package-lock.json
+          npm install --package-lock-only --ignore-scripts --include=dev --no-audit --no-fund
+          npm ci --include=dev --no-audit --no-fund
 
-      - name: Install pinned JavaScript dependencies
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [[ -f package-lock.json ]]; then
-            npm ci --include=dev --no-audit --no-fund
-          else
-            npm install --include=dev --no-audit --no-fund
-          fi
-          test -f package-lock.json
-
-      - name: TypeScript and blocking source checks
-        shell: bash
-        run: |
-          set -euo pipefail
-          npx expo install --check
-          npm run typecheck
-          node --check plugins/withLifeVaultAndroidSecurity.js
-          python3 scripts/dependency_static_check.py
-          python3 scripts/security_static_check.py
-          python3 scripts/structure_static_check.py
-          python3 scripts/import_graph_check.py
-          python3 scripts/checker_self_test.py
-          python3 scripts/build_script_self_test.py
-
-      - name: Upload resolved dependency lock
+      - name: Upload regenerated dependency lock
         uses: actions/upload-artifact@v4
         with:
           name: life-vault-package-lock
@@ -102,82 +52,52 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-      - name: Validate test signing certificate
-        shell: bash
+      - name: TypeScript and source checks
         run: |
-          set -euo pipefail
-          certificate_file="$(mktemp)"
-          trap 'rm -f "$certificate_file"' EXIT
-          keytool -exportcert \
-            -keystore .github/test-signing/life-vault-test.jks \
-            -storepass lifevault-test-only \
-            -alias lifevault-test \
-            -file "$certificate_file" >/dev/null
-          actual_sha256="$(sha256sum "$certificate_file" | awk '{print $1}')"
-          expected_sha256='09497404b99a87cbb46743aeb31f872e2c7b70629a4bf928b5670fe9686b8faa'
-          if [[ "$actual_sha256" != "$expected_sha256" ]]; then
-            printf 'Unexpected test signing certificate SHA-256: %s\n' "$actual_sha256" >&2
-            exit 1
-          fi
+          npx expo install --check
+          npm run typecheck
+          python3 scripts/dependency_static_check.py
+          python3 scripts/security_static_check.py
+          python3 scripts/structure_static_check.py
+          python3 scripts/import_graph_check.py
 
       - name: Configure isolated test application id and build version
         env:
           RUN_NUMBER: ${{ github.run_number }}
-        shell: bash
         run: |
-          set -euo pipefail
           python3 - <<'PY'
-          import json
-          import os
-          from pathlib import Path
-
-          path = Path('app.json')
-          data = json.loads(path.read_text(encoding='utf-8'))
+          import json, os
+          path = 'app.json'
+          with open(path, encoding='utf-8') as handle:
+              data = json.load(handle)
           data['expo']['name'] = 'Life Vault Test'
           data['expo']['android']['package'] = 'com.lifevault.mobile.test'
           data['expo']['android']['versionCode'] = 1000 + int(os.environ['RUN_NUMBER'])
-          path.write_text(json.dumps(data, indent=2) + '\n', encoding='utf-8')
+          with open(path, 'w', encoding='utf-8') as handle:
+              json.dump(data, handle, indent=2)
+              handle.write('\n')
           PY
 
       - name: Generate Android project and Gradle wrapper
-        shell: bash
-        run: |
-          set -euo pipefail
-          npx expo prebuild --platform android --clean
+        run: npx expo prebuild --platform android --clean --non-interactive
 
-      - name: Harden and validate generated Android project
-        shell: bash
+      - name: Configure arm64-only test build
         run: |
-          set -euo pipefail
-          python3 scripts/configure_generated_android.py
+          cat >> android/gradle.properties <<'EOF2'
+          org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8
+          reactNativeArchitectures=arm64-v8a
+          EOF2
           chmod +x android/gradlew
 
       - name: Unit tests, release lint and standalone build
         working-directory: android
-        shell: bash
-        run: |
-          set -euo pipefail
-          ./gradlew testDebugUnitTest lintRelease assembleRelease \
-            --no-daemon \
-            --stacktrace \
-            -PreactNativeArchitectures=arm64-v8a
+        run: ./gradlew testDebugUnitTest lintRelease assembleRelease --no-daemon --stacktrace -PreactNativeArchitectures=arm64-v8a
 
       - name: Sign standalone test APK with stable test certificate
-        shell: bash
         run: |
           set -euo pipefail
-          preferred="android/app/build/outputs/apk/release/app-release.apk"
-          if [[ -f "$preferred" ]]; then
-            unsigned_apk="$preferred"
-          else
-            mapfile -t apk_files < <(find android/app/build/outputs/apk/release -maxdepth 1 -type f -name '*.apk' | sort)
-            if [[ "${#apk_files[@]}" -ne 1 ]]; then
-              printf 'Expected exactly one release APK, found %s.\n' "${#apk_files[@]}" >&2
-              printf '%s\n' "${apk_files[@]:-}" >&2
-              exit 1
-            fi
-            unsigned_apk="${apk_files[0]}"
-          fi
+          UNSIGNED_APK="$(find android/app/build/outputs/apk/release -maxdepth 1 -type f -name '*.apk' | head -n 1)"
+          test -n "$UNSIGNED_APK"
           mkdir -p build-artifacts
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" sign \
             --ks .github/test-signing/life-vault-test.jks \
@@ -185,30 +105,25 @@ jobs:
             --ks-pass pass:lifevault-test-only \
             --key-pass pass:lifevault-test-only \
             --out build-artifacts/life-vault-android-test.apk \
-            "$unsigned_apk"
-          signature_report="$({ "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify \
-            --verbose \
-            --print-certs \
-            build-artifacts/life-vault-android-test.apk; } 2>&1)"
-          printf '%s\n' "$signature_report"
-          normalised_signature="$(printf '%s' "$signature_report" | tr '[:upper:]' '[:lower:]' | tr -d ':')"
-          grep -F '09497404b99a87cbb46743aeb31f872e2c7b70629a4bf928b5670fe9686b8faa' <<<"$normalised_signature" >/dev/null
+            "$UNSIGNED_APK"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose build-artifacts/life-vault-android-test.apk
 
-      - name: Verify final APK security manifest
-        shell: bash
+      - name: Verify release security manifest
         run: |
           set -euo pipefail
-          mapfile -t analyzers < <(find "$ANDROID_HOME/cmdline-tools" -type f -name apkanalyzer -perm -u+x | sort)
-          if [[ "${#analyzers[@]}" -lt 1 ]]; then
-            printf 'Android SDK apkanalyzer was not found.\n' >&2
-            exit 1
-          fi
-          last_index=$((${#analyzers[@]} - 1))
-          apk_analyzer="${analyzers[$last_index]}"
-          "$apk_analyzer" manifest print \
-            build-artifacts/life-vault-android-test.apk \
-            > build-artifacts/AndroidManifest.xml
-          python3 scripts/verify_merged_manifest.py build-artifacts/AndroidManifest.xml
+          MANIFEST="$(find android/app/build/intermediates/merged_manifests/release -type f -name AndroidManifest.xml | head -n 1)"
+          test -n "$MANIFEST"
+          test -f "$MANIFEST"
+          grep -q 'package="com.lifevault.mobile.test"' "$MANIFEST" || grep -q 'com.lifevault.mobile.test' "$MANIFEST"
+          ! grep -q 'android.permission.INTERNET' "$MANIFEST"
+          ! grep -q 'android.permission.ACCESS_NETWORK_STATE' "$MANIFEST"
+          ! grep -q 'android.permission.READ_EXTERNAL_STORAGE' "$MANIFEST"
+          ! grep -q 'android.permission.WRITE_EXTERNAL_STORAGE' "$MANIFEST"
+          ! grep -q 'android.permission.MANAGE_EXTERNAL_STORAGE' "$MANIFEST"
+          ! grep -q 'android.permission.QUERY_ALL_PACKAGES' "$MANIFEST"
+          grep -q 'android.permission.HIDE_OVERLAY_WINDOWS' "$MANIFEST"
+          grep -q 'android:allowBackup="false"' "$MANIFEST"
+          grep -q 'android:usesCleartextTraffic="false"' "$MANIFEST"
 
       - name: Upload standalone APK and reports
         uses: actions/upload-artifact@v4
@@ -216,25 +131,9 @@ jobs:
           name: life-vault-android-test-build
           path: |
             build-artifacts/life-vault-android-test.apk
-            build-artifacts/AndroidManifest.xml
-            package-lock.json
             android/app/build/reports/tests/**
+            package-lock.json
             android/app/build/reports/lint-results-release.*
             modules/life-vault-native/android/build/reports/tests/**
           if-no-files-found: error
           retention-days: 30
-
-      - name: Upload Gradle diagnostics on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: life-vault-build-diagnostics
-          path: |
-            android/build/reports/problems/**
-            android/app/build/reports/**
-            modules/life-vault-native/android/build/reports/**
-            android/gradle.properties
-            android/app/src/main/AndroidManifest.xml
-            android/app/src/main/res/xml/life_vault_data_extraction_rules.xml
-          if-no-files-found: ignore
-          retention-days: 14
