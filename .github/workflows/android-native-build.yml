@@ -13,7 +13,7 @@ jobs:
     timeout-minutes: 90
     env:
       CI: 'true'
-      WORKFLOW_REVISION: 'life-vault-ci-2026-08-01-r4'
+      WORKFLOW_REVISION: 'life-vault-ci-2026-08-01-r5'
 
     steps:
       - name: Checkout repository
