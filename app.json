@@ -1,0 +1,41 @@
+{
+  "expo": {
+    "name": "Life Vault",
+    "slug": "life-vault",
+    "version": "2.1.8",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.lifevault.mobile"
+    },
+    "android": {
+      "package": "com.lifevault.mobile",
+      "versionCode": 8,
+      "permissions": [
+        "android.permission.HIDE_OVERLAY_WINDOWS",
+        "android.permission.USE_BIOMETRIC",
+        "android.permission.USE_FINGERPRINT"
+      ],
+      "blockedPermissions": [
+        "android.permission.INTERNET",
+        "android.permission.ACCESS_NETWORK_STATE"
+      ],
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "plugins": [
+      "./plugins/withLifeVaultAndroidSecurity"
+    ],
+    "web": {
+      "favicon": "./assets/favicon.png"
+    }
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "name": "life-vault",
+  "version": "2.1.8",
+  "main": "index.ts",
+  "dependencies": {
+    "@react-navigation/native": "7.3.5",
+    "@react-navigation/native-stack": "7.17.7",
+    "expo": "57.0.9",
+    "expo-document-picker": "57.0.1",
+    "expo-status-bar": "57.0.1",
+    "react": "19.2.3",
+    "react-native": "0.86.2",
+    "react-native-gesture-handler": "2.32.0",
+    "react-native-get-random-values": "1.11.0",
+    "react-native-safe-area-context": "5.7.0",
+    "react-native-screens": "4.26.0",
+    "uuid": "14.0.1"
+  },
+  "devDependencies": {
+    "@types/react": "19.2.4",
+    "typescript": "6.0.3"
+  },
+  "scripts": {
+    "start": "expo start --dev-client",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "web": "expo start --web",
+    "typecheck": "tsc --noEmit",
+    "security-check": "python3 scripts/security_static_check.py",
+    "prebuild:android": "expo prebuild --platform android --clean",
+    "build:android:test": "npm run prebuild:android && cd android && ./gradlew testDebugUnitTest lintDebug assembleDebug --no-daemon",
+    "build:android:release": "npm run prebuild:android && cd android && ./gradlew testReleaseUnitTest lintRelease assembleRelease --no-daemon",
+    "structure-check": "python3 scripts/structure_static_check.py",
+    "dependency-check": "python3 scripts/dependency_static_check.py"
+  },
+  "private": true
+}
